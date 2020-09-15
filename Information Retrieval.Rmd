@@ -2,8 +2,7 @@
 title: "Ben_Kacikanis"
 author: "Ben Kacikanis"
 date: "15/09/2020"
-output: html_document
----
+output: rmarkdown::github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
