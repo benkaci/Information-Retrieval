@@ -1,0 +1,129 @@
+---
+title: "Ben_Kacikanis"
+author: "Ben Kacikanis"
+date: "15/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Information Retrieval Project
+
+This project is an example of a basic search engine's information retrieval system. There are a list of a small corpus of documents, in addition to an example query. I will clean common meaningless words, and be using a term document matrix and take the inverse of the frequency to give words with the least frequency higher weights. 
+
+
+```{r }
+library(tm)
+library(SnowballC)
+library(slam)
+
+```
+##  Corpus of documents
+
+```{r }
+doc1 <- "Stray cats are running all over the place. I see 10 a day!"
+doc2 <- "Cats are killers. They kill billions of animals a year."
+doc3 <- "The best food in Columbus, OH is   the North Market."
+doc4 <- "Brand A is the best tasting cat food around. Your cat will love it."
+doc5 <- "Buy Brand C cat food for your cat. Brand C makes healthy and happy cats."
+doc6 <- "The Arnold Classic came to town this weekend. It reminds us to be healthy."
+doc7 <- "I have nothing to say. In summary, I have told you nothing."
+```
+
+## Organizing docs and introduce query
+```{r }
+doc.list<- list(doc1,doc2,doc3,doc4,doc5,doc6,doc7)
+N.docs<-length(doc.list)
+names(doc.list)<- paste0("doc",c(1:N.docs))
+query<- "Healthy cat food"
+```
+
+```{r }
+my.docs<- VectorSource(c(doc.list,query))
+my.docs$Names<- c(names(doc.list),query)
+my.corpus<-Corpus(my.docs)
+```
+
+## Transform corpus to remove variations of words to improve accuracy of term document matrix
+```{r }
+getTransformations()
+my.corpus<- tm_map(my.corpus,removePunctuation)
+content(my.corpus[0])
+my.corpus<-tm_map(my.corpus,stemDocument)
+my.corpus<-tm_map(my.corpus, content_transformer(tolower))
+my.corpus<-tm_map(my.corpus,stripWhitespace)
+```
+## Term Document Matrix
+
+
+```{r }
+term.document.matrix.stm<- TermDocumentMatrix(my.corpus)
+colnames(term.document.matrix.stm)<-c(names(doc.list),"query")
+inspect (term.document.matrix.stm)
+
+```
+
+```{r }
+term.document.matrix<- as.matrix(term.document.matrix.stm)
+cat("Dense matrix representation costs", object.size(term.document.matrix), "bytes.\n", 
+    "Simple triplet matrix representation costs", object.size(term.document.matrix.stm), 
+    "bytes.")
+
+```
+
+
+## tfidf.matrix, inverse matrix refelcts importance of words with less frequency and higher meaning
+
+
+```{r }
+get.tf.idf.weights<-function(tf.vec){
+  n.docs<- length(tf.vec)
+  doc.frequency<-length(tf.vec[tf.vec>0])
+  weights<- rep(0,n.docs)
+  weights[tf.vec>0]<-(1+log2(tf.vec[tf.vec>0]))*(1+log2(n.docs/doc.frequency))
+  return (weights)
+}
+```
+
+```{r }
+get.tf.idf.weights(c(1, 2, 3, 0, 0, 6))
+
+tfidf.matrix<- t(apply(term.document.matrix,1, FUN= function(row){get.tf.idf.weights(row)}))
+colnames(tfidf.matrix)<- colnames(term.document.matrix)
+```
+
+## Cosine similarity to give measure how similar documents are
+
+
+```{r }
+angle<-seq(-pi,pi,by = pi/16)
+plot(cos(angle)~angle,type="b",  xlab = "
+angle in  radians", main ="Cosine  similarity  by
+angle")
+```
+
+```{r }
+tfidf.matrix<- scale(tfidf.matrix,center = FALSE,
+                     scale = sqrt(colSums(tfidf.matrix^2)))
+tfidf.matrix[0:3,]
+
+query_vector<- tfidf.matrix[,N.docs+1]
+tfidf.matrix<- tfidf.matrix[,1:N.docs]
+```
+
+## Results of how similar query is to documents.
+
+```{r }
+doc_scores<- t(query_vector) %*% tfidf.matrix
+
+results.df<- data.frame(doc=names(doc.list),score= t(doc_scores),text=unlist(doc.list))
+results.df<- results.df[order(results.df$score,decreasing = T),]
+
+```
+
+```{r }
+options(width = 200)
+print(results.df,row.names=F,right=F,digits=2)
+```
